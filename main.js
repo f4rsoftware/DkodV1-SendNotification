@@ -1,56 +1,86 @@
-import {settingProcessRun} from "./lib/db/settingProcess.js"
-import {getLogger} from './lib/utils/logger.js'
-import { createServer } from 'http'
-import {tumBildirimKontrolleriniBaslat} from "./lib/notificationTask/runTumBildirimTurleri.js"
-import {sendSesliCagriNetGsm} from "./lib/notificationModule/sendVoiceCall.js"
+import express from 'express'
+import cors from 'cors'
+import { settingProcessRun } from './lib/db/settingProcess.js'
+import { getLogger } from './lib/utils/logger.js'
+import { tumBildirimKontrolleriniBaslat } from './lib/notificationTask/runTumBildirimTurleri.js'
+import {startCallReminderHandler} from "./lib/notificationTask/callReminderHandler.js"
+import {settings} from "./lib/global/settings.js"
+
+const app = express()
+const port =  process.env.HTTP_PORT || 3000
 const logger = getLogger('main.js')
 
-await settingProcessRun() //Setting İşlemleri Çalıştırılıyor.
-await tumBildirimKontrolleriniBaslat() // Bildirim Kontrolleri Başlatılıyor.
+// CORS Middleware'i uygulama genelinde kullanmak için (isteğe bağlı)
+app.use(cors())
 
-
-const port = 6000
-
-const server = createServer(async (req, res) => {
-    if (req.url === '/api/refreshInstantCalls' && req.method === 'GET') {
-        try {
-            logger.info('Sql Server Yeni Çağrı Bildirimi Yaptı')
-            res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ message: 'GET isteği başarıyla alındı' }))
-
-            await tumBildirimKontrolleriniBaslat(); // Bildirim Kontrolleri Başlatılıyor.
-
-        } catch (error) {
-
-            res.writeHead(500, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ error: 'Bir hata oluştu' }))
-
+app.get('/api/refreshInstantCalls', async (req, res) => {
+    try {
+        
+        logger.info('Sql Server Yeni Çağrı Bildirimi Yaptı')
+        // Önce yanıtı gönderiyoruz
+        res.status(200).json({ message: 'GET isteği başarıyla alındı' })
+        
+        // Sonrasında asenkron işlemleri başlatıyoruz
+        await tumBildirimKontrolleriniBaslat() // Bildirim Kontrolleri Başlatılıyor.
+		
+        if (settings.cagriOnayAramasiAktifligi) {
+            logger.info('Çağrı Onayı Hatırlatma Araması Kontrolerine Başlanıldı.')
+            startCallReminderHandler() // Hatırlatma Bildirimi Çalıştırılıyor.
         }
-    } else if (req.url === '/api/runSettingProcess' && req.method === 'GET') {
-        // Yeni rota: /api/runSettingProcess
-        try {
-            logger.info('Setting Ayarlarının Değiştiği Bildirimi Yapıldı.')
-            res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ message: 'Setting Process başarıyla çalıştırıldı' }))
 
-            await settingProcessRun() // settingProcessRun fonksiyonu çalıştırılıyor.
-
-        } catch (error) {
-
-            res.writeHead(500, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ error: 'Bir hata oluştu' }))
+    } catch (error) {
+        // Eğer yanıt daha önce gönderildiyse burada bir sorun olmayacak
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Bir hata oluştu' })
+        } else {
+            logger.error('Yanıt gönderildikten sonra hata oluştu:', error)
         }
-    } else {
-        res.writeHead(404, { 'Content-Type': 'text/plain' })
-        res.end('404 Not Found')
     }
 })
-server.listen(port, () => {
-    console.log(`Bildirim Gönderim App  ${port} portunda çalışıyor.`)
+
+app.get('/api/runSettingProcess', async (req, res) => {
+    try {
+        logger.info('Setting Ayarlarının Değiştiği Bildirimi Yapıldı.')
+        // Önce yanıtı gönderiyoruz
+        res.status(200).json({ message: 'Setting Process başarıyla çalıştırıldı' })
+        
+        // Sonrasında asenkron işlemleri başlatıyoruz
+        await settingProcessRun() // settingProcessRun fonksiyonu çalıştırılıyor.
+
+    } catch (error) {
+        // Eğer yanıt daha önce gönderildiyse burada bir sorun olmayacak
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Bir hata oluştu' })
+        } else {
+            logger.error('Yanıt gönderildikten sonra hata oluştu:', error)
+        }
+    }
 })
 
+app.get('/', (req, res) => {
+    logger.info('Canlı olduğumu bildirdim.')
+    res.status(200).send('OK') // Doğrudan istek için "OK" cevabı döndür
+})
 
+// 404 Not Found Middleware
+app.use((req, res, next) => {
+    res.status(404).send('404 Not Found')
+})
 
+// İlk başlangıçta gerekli olan işlemleri burada çalıştır
+async function init() {
+    try {
+        logger.info('Send Notification Started.')
+        await settingProcessRun()
+        await tumBildirimKontrolleriniBaslat()
+        //startCallReminderHandler()
 
+        app.listen(port, () => {
+            logger.info(`Bildirim Gönderim App ${port} portunda çalışıyor.`)
+        })
+    } catch (error) {
+        logger.error('Başlangıç işlemi sırasında hata oluştu:', error.toString())
+    }
+}
 
-
+await init() // Uygulamayı başlat
