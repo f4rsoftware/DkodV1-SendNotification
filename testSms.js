@@ -1,8 +1,8 @@
 import 'dotenv/config'
 import NetGsm from 'netgsm'
 import axios from 'axios'
-import { getLogger } from "../utils/logger.js"
-const logger = getLogger('sendSms.js')
+import { getLogger } from "./lib//utils/logger.js"
+const logger = getLogger('sendSmsTest.js')
 
 
 // NetGsm İçin Sms Değişkeni
@@ -76,12 +76,14 @@ async function sendSMSKirmizi(gsm,message) {
     }
 }
 
-async function sendSMSKobicom(gsm, message) {
-    logger.info('Kobicom Santral ile Sms Gönderme İşlemleri Başladı.')
+
+async function sendSMSKobicom(gsm,message) {
+    logger.info('Kobicom Santral  ile Sms Gönderme İşlemleri Başladı.')
 
     const url = 'http://smsportal.kobikom.com.tr:9587/sms/create'
     const username = process.env.KOBICOM_SANTRAL_USERCODE
     const password = process.env.KOBICOM_SANTRAL_PASSWORD
+    //Kobicom Santralde metinden gelen \n karakteri alt satıra geçmeye yaramadığı  için kaldırıldı.
     const data = {
         type: 1,
         sendingType: 1,
@@ -89,7 +91,7 @@ async function sendSMSKobicom(gsm, message) {
         content: message,
         numbers: gsm,
         encoding: 1,
-        sender: "DAHIKOD",
+        sender: "DAHIKOD", //Mesaj Başlığı
         periodicSettings: null,
         sendingDate: null,
         validity: 1440
@@ -104,17 +106,21 @@ async function sendSMSKobicom(gsm, message) {
                 'Content-Type': 'application/json'
             }
         })
-        const pkgID = response.data.data.pkgID
-        if (response.data.err === null) {
-            logger.info('Kobicom SMS Gönderme Başarılı:' + pkgID)
+    
+        const pkgID  =await response.data.data.pkgID
+        if (response.data.err===null) {
+            console.log(pkgID)
+            logger.info('Kobicom SMS Gönderme Başarılı:' + pkgID.toString())
             return { success: true, data: pkgID }
         }
         logger.info('Kobicom SMS Gönderme Başarısız')
         return { success: false, data: 'Başarısız' }
     } catch (err) {
-        logger.error('Kobicom SMS Gönderme Hatası:' + err)
-        return { success: false, data: 'Başarısız' }
+        logger.error('Kobicom SMS Gönderme Hatası:'+ err)
+        return { success: false, data: 'Başarısız' };
     }
 }
 
-export { sendSMSNetGsm, sendSMSKirmizi, sendSMSKobicom }
+
+//await sendSMSNetGsm('905065855286', 'Birişvar Test Mesajı 2')
+await sendSMSKirmizi('905065855286', 'Birişvar Test Mesajı 2')

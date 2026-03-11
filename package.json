@@ -20,6 +20,7 @@
     "mqtt": "^5.3.3",
     "mssql": "^10.0.1",
     "netgsm": "^1.1.0",
+    "node-fetch": "^3.3.2",
     "winston": "^3.11.0"
   },
   "versionNotes": {
