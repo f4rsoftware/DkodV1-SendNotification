@@ -1,0 +1,95 @@
+/*
+Runtime smoke test for V1-SendNotification SQLs
+Goal: Ensure critical queries compile and run after migration.
+Non-destructive: SELECT-only and TOP-limited.
+*/
+
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+
+DECLARE @kacDakika INT = 60;
+DECLARE @kontrolDakikaBaslama INT = 5;
+DECLARE @kontrolDakikaBitis INT = 35;
+
+PRINT '=== Runtime smoke test started ===';
+
+BEGIN TRY
+    /* 1) Settings reads */
+    PRINT '1) settings read checks';
+    SELECT TOP 1
+        BILDIRIM_GONDERME_DENEME_SAYISI,
+        KAC_DAKIKA_ONCEKI_BILDIRIM_GONDERILSIN,
+        NET_GSM_BIRINCI_FIRMA,
+        TEK_SEFERDE_SMS_GONDERILECEK_KISI_SAYISI,
+        TEK_SEFERDE_SESLI_CAGRI_GONDERILECEK_KISI_SAYISI,
+        TEK_SEFERDE_MAIL_GONDERILECEK_KISI_SAYISI,
+        KOBICOM_BIRINCI_FIRMA,
+        KIRMIZI_SANTRAL_BIRINCI_FIRMA,
+        AKTIF_BIRINCI_FIRMA,
+        AKTIF_IKINCI_FIRMA,
+        CAGRI_SONLANDIRMA_GERI_ARAMASI,
+        CAGRI_SONLANDIRMA_ARAMA_BASLAMA_DAKIKASI,
+        CAGRI_SONLANDIRMA_ARAMA_BITIS_DAKIKASI
+    FROM K_DAHIKOD_AYARLAR;
+
+    SELECT TOP 1 SMS_DURUM, EPOSTA_DURUM, SESLI_CAGRI_AKTIF
+    FROM S_GENELAYARLAR;
+
+    /* 2) SMS task shape */
+    PRINT '2) sms task query shape check';
+    SELECT TOP 1 *
+    FROM K_DAHIKOD_BILDIRIM
+    WHERE (BILDIRIM_SMS = 1)
+      AND (BILDIRIM_METNI IS NOT NULL)
+      AND (DATEDIFF(MINUTE, BILDIRIM_OLUSTURMA_ZAMANI, GETDATE()) <= @kacDakika)
+      AND (KAYIT_KONTROL_EDILDI = 0)
+      AND (BILDIRIM_SMS_ISLEM_ACIKLAMA = 'Beklemede' OR BILDIRIM_SMS_ISLEM_ACIKLAMA = 'Gonderilemedi');
+
+    /* 3) Voice task shape */
+    PRINT '3) voice task query shape check';
+    SELECT TOP 1 *
+    FROM K_DAHIKOD_BILDIRIM
+    WHERE (BILDIRIM_SESLI_CAGRI = 1)
+      AND (SESLI_CAGRI_METNI IS NOT NULL)
+      AND (DATEDIFF(MINUTE, BILDIRIM_OLUSTURMA_ZAMANI, GETDATE()) <= @kacDakika)
+      AND (KAYIT_KONTROL_EDILDI = 0)
+      AND (BILDIRIM_SESLI_CAGRI_ISLEM_ACIKLAMA = 'Beklemede' OR BILDIRIM_SESLI_CAGRI_ISLEM_ACIKLAMA = 'Gonderilemedi');
+
+    /* 4) Reminder flow query shape */
+    PRINT '4) reminder query shape check';
+    WITH CTE AS (
+        SELECT
+            b.BILDIRIM_DENEME_ID,
+            b.CAGRI_ID,
+            b.PERSONEL_ID,
+            b.PERSONEL_TELEFON,
+            b.BILDIRIM_SESLI_CAGRI,
+            b.CAGRI_ONAYI_HATIRLARMA_ARAMA_SAYISI,
+            b.CAGRI_ONAYI_HATIRLATMA_ARAMASI_YAPILACAK,
+            b.CAGRI_ONAY_BILDIRIM_METNI,
+            c.CAGRI_DURUMU,
+            c.CAGRI_ZAMANI,
+            c.TEST_CAGRISI,
+            DATEDIFF(MINUTE, c.CAGRI_ZAMANI, GETDATE()) AS MINUTES_PASSED
+        FROM K_DAHIKOD_BILDIRIM b
+        JOIN K_DAHIKOD_CAGRI c ON b.CAGRI_ID = c.CAGRI_ID
+        WHERE c.CAGRI_DURUMU = 1
+          AND b.BILDIRIM_SESLI_CAGRI = 1
+          AND b.CAGRI_ONAYI_HATIRLATMA_ARAMASI_YAPILACAK = 1
+          AND b.PERSONEL_TELEFON IS NOT NULL
+          AND b.CAGRI_ONAY_BILDIRIM_METNI IS NOT NULL
+          AND b.BILDIRIM_SESLI_CAGRI_DURUM = 1
+          AND c.TEST_CAGRISI = 0
+    )
+    SELECT TOP 1 *
+    FROM CTE
+    WHERE MINUTES_PASSED >= @kontrolDakikaBaslama
+      AND MINUTES_PASSED < @kontrolDakikaBitis
+    ORDER BY CAGRI_ID DESC;
+
+    PRINT '=== Runtime smoke test completed successfully ===';
+END TRY
+BEGIN CATCH
+    PRINT 'SMOKE TEST FAILED: ' + ERROR_MESSAGE();
+    THROW;
+END CATCH;

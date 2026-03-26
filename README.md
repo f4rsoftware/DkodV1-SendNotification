@@ -55,3 +55,4 @@
 - [x] `settingProcess.js` — SQL sorgusundaki virgül hatası düzeltildi; `KIRMIZI_SANTRAL_BIRINCI_FIRMA`, `AKTIF_BIRINCI_FIRMA`, `AKTIF_IKINCI_FIRMA` alanları eklendi.
 - [x] `sendSms.js` — `sendSMSKobicom` içindeki geçici Kırmızı Santral yönlendirmesi (TODO) kaldırıldı, gerçek Kobicom SMS fonksiyonu geri yüklendi.
 - [x] `runSmsTask.js` — SMS firma öncelik sistemi yeniden yapılandırıldı. `AKTIF_BIRINCI_FIRMA` / `AKTIF_IKINCI_FIRMA` DB alanları artık SMS için de geçerli; `useFirstFirm` boolean mantığı kaldırılarak sesli çağrı ile aynı öncelik listesi yapısına geçildi.
+- [x] `callReminderHandler.js` — Hatırlatma sesli çağrı akışı, normal bildirim sırasının tersini kullanacak şekilde yeniden düzenlendi. Normalde birinci olan firma yerine hatırlatmada diğer firma önce denenir; başarısız olursa sıradaki firmaya otomatik fallback yapılır. Bu akışa `KIRMIZISANTRAL` desteği de eklendi.
