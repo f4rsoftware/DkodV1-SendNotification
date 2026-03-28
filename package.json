@@ -1,13 +1,16 @@
 {
   "name": "v1-sendnotification",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "V1 için bildirim gönderme modülü",
   "main": "main.js",
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node main.js",
-    "version": "node -e \"const pkg = require('./package.json'); console.log('Version ' + pkg.version + ': ' + pkg.versionNotes[pkg.version]);\""
+    "version": "node -e \"const pkg = require('./package.json'); console.log('Version ' + pkg.version + ': ' + pkg.versionNotes[pkg.version]);\"",
+    "precheck": "node scripts/predeployCheck.js",
+    "test:sms": "node testSms.js",
+    "test:voice": "node testSesliCagri.js"
   },
   "author": "Deniz MAT",
   "license": "ISC",
@@ -24,6 +27,7 @@
     "winston": "^3.11.0"
   },
   "versionNotes": {
+    "1.6.0": "Hatırlatma sesli çağrı akışı yeniden düzenlendi. Firma öncelik sırası ve otomatik fallback mekanizması eklendi. Kırmızı Santral desteği hatırlatma akışına dahil edildi.",
     "1.5.0": "Çağrı Hatırlatma Araması Özelliği Eklendi.",
     "1.4.0": "Mobil bildirim gönderme özelliği eklendi",
     "1.3.0": "Kırmızı Santral Sistemden Çıkartıldı. Sisteme Kobicom Eklendi.",

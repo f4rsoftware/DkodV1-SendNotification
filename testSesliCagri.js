@@ -2,6 +2,9 @@ import axios from "axios";
 import 'dotenv/config'
 import {getLogger} from "./lib/utils/logger.js";
 const logger = getLogger('testSesliCagri.js')
+const provider = (process.argv[2] || 'netgsm').toLowerCase()
+const phoneArg = process.argv[3] || '905065855286'
+const messageArg = process.argv[4] || 'Beyaz kod, Beyaz kod, F blok, -1. kat, 1. kapi'
 async function sendSesliCagriNetGsm(gsm, message) {
     const usercode = process.env.NETGSM_USERCODE
     const password = process.env.NETGSM_PASSWORD
@@ -124,8 +127,24 @@ async function sendSesliCagriKobicom(phoneNumbersToCall, voiceMessageText,callID
 
 
 (async () => {
-    const msg = 'Beyaz kod, Beyaz kod, F blok, -1. kat, 1. kapı'
-    //await sendSesliCagriNetGsm('<no>5065855286</no>', msg)
-    await sendSesliCagriKirmiziSantral('905065855286', msg)
-    //await sendSesliCagriKobicom(["905065855286"],msg,'9999');
+    if (provider === 'netgsm') {
+        const response = await sendSesliCagriNetGsm(`<no>${phoneArg}</no>`, messageArg)
+        logger.info('Sesli cagri test sonucu: ' + JSON.stringify(response))
+        return
+    }
+
+    if (provider === 'kirmizi') {
+        const response = await sendSesliCagriKirmiziSantral(phoneArg, messageArg)
+        logger.info('Sesli cagri test sonucu: ' + JSON.stringify(response))
+        return
+    }
+
+    if (provider === 'kobicom') {
+        const response = await sendSesliCagriKobicom([phoneArg], messageArg, '9999')
+        logger.info('Sesli cagri test sonucu: ' + JSON.stringify(response))
+        return
+    }
+
+    logger.error('Desteklenen provider degerleri: netgsm | kirmizi | kobicom')
+    process.exit(1)
 })()

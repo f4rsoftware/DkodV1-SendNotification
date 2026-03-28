@@ -4,15 +4,22 @@ import axios from 'axios'
 import { getLogger } from "./lib//utils/logger.js"
 const logger = getLogger('sendSmsTest.js')
 
+function parsePkgIdFromProviderResponse(payload) {
+    if (!payload || typeof payload !== 'object') return null
+    return payload?.data?.pkgID ?? payload?.data?.pkgId ?? payload?.pkgID ?? payload?.pkgId ?? null
+}
 
-// NetGsm İçin Sms Değişkeni
-const smsNetGsm = new NetGsm({
-    usercode: process.env.NETGSM_USERCODE,
-    password: process.env.NETGSM_PASSWORD,
-    msgheader: process.env.NETGSM_HEADER
-})
+const provider = (process.argv[2] || 'netgsm').toLowerCase()
+const phoneArg = process.argv[3] || '905065855286'
+const messageArg = process.argv[4] || 'dkod Test Mesaji'
 
 async function sendSMSNetGsm(gsm, message) {
+    const smsNetGsm = new NetGsm({
+        usercode: process.env.NETGSM_USERCODE,
+        password: process.env.NETGSM_PASSWORD,
+        msgheader: process.env.NETGSM_HEADER
+    })
+
     // gsm : Array of GSM numbers
     // message : Message to be sent
     try {
@@ -63,15 +70,16 @@ async function sendSMSKirmizi(gsm,message) {
             }
         })
 
-        const pkgID  = response.data.data.pkgID
-        if (response.data.err===null) {
+        const payload = response?.data
+        const pkgID = parsePkgIdFromProviderResponse(payload)
+        if (payload?.err === null && pkgID) {
             logger.info('Kırmızı Santral SMS Gönderme Başarılı:' + pkgID)
             return { success: true, data: pkgID }
         }
-        logger.info('Kırmızı Santral SMS Gönderme Başarısız:Başarısız')
+        logger.info('Kırmızı Santral SMS Gönderme Başarısız: ' + JSON.stringify(payload))
         return { success: false, data: 'Başarısız' }
     } catch (err) {
-      logger.error('Kırmızı Santral SMS Gönderme Hatası:'+ err)
+      logger.error('Kırmızı Santral SMS Gönderme Hatası:'+ (err?.response?.data ? JSON.stringify(err.response.data) : err))
         return { success: false, data: 'Başarısız' };
     }
 }
@@ -107,20 +115,42 @@ async function sendSMSKobicom(gsm,message) {
             }
         })
     
-        const pkgID  =await response.data.data.pkgID
-        if (response.data.err===null) {
+        const payload = response?.data
+        const pkgID = parsePkgIdFromProviderResponse(payload)
+        if (payload?.err === null && pkgID) {
             console.log(pkgID)
             logger.info('Kobicom SMS Gönderme Başarılı:' + pkgID.toString())
             return { success: true, data: pkgID }
         }
-        logger.info('Kobicom SMS Gönderme Başarısız')
+        logger.info('Kobicom SMS Gönderme Başarısız: ' + JSON.stringify(payload))
         return { success: false, data: 'Başarısız' }
     } catch (err) {
-        logger.error('Kobicom SMS Gönderme Hatası:'+ err)
+        logger.error('Kobicom SMS Gönderme Hatası:'+ (err?.response?.data ? JSON.stringify(err.response.data) : err))
         return { success: false, data: 'Başarısız' };
     }
 }
 
+async function runSmsTest() {
+    if (provider === 'netgsm') {
+        const response = await sendSMSNetGsm(phoneArg, messageArg)
+        logger.info('SMS test sonucu: ' + JSON.stringify(response))
+        return
+    }
 
-//await sendSMSNetGsm('905065855286', 'Birişvar Test Mesajı 2')
-await sendSMSKirmizi('905065855286', 'Birişvar Test Mesajı 2')
+    if (provider === 'kirmizi') {
+        const response = await sendSMSKirmizi([phoneArg], messageArg)
+        logger.info('SMS test sonucu: ' + JSON.stringify(response))
+        return
+    }
+
+    if (provider === 'kobicom') {
+        const response = await sendSMSKobicom([phoneArg], messageArg)
+        logger.info('SMS test sonucu: ' + JSON.stringify(response))
+        return
+    }
+
+    logger.error('Desteklenen provider degerleri: netgsm | kirmizi | kobicom')
+    process.exit(1)
+}
+
+runSmsTest()

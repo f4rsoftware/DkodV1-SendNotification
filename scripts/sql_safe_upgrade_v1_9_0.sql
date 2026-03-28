@@ -109,11 +109,12 @@ BEGIN TRY
     END
 
     /* 4) Optional NULL default fill (only if requested) */
+    /* Dynamic SQL used to avoid compile-time "Invalid column name" errors for newly added columns */
     IF @FillDefaults = 1
     BEGIN
         IF @ApplyChanges = 1
         BEGIN
-            UPDATE K_DAHIKOD_AYARLAR
+            EXEC sp_executesql N'UPDATE K_DAHIKOD_AYARLAR
                SET BILDIRIM_GONDERME_DENEME_SAYISI = ISNULL(BILDIRIM_GONDERME_DENEME_SAYISI, 3),
                    KAC_DAKIKA_ONCEKI_BILDIRIM_GONDERILSIN = ISNULL(KAC_DAKIKA_ONCEKI_BILDIRIM_GONDERILSIN, 30),
                    TEK_SEFERDE_SMS_GONDERILECEK_KISI_SAYISI = ISNULL(TEK_SEFERDE_SMS_GONDERILECEK_KISI_SAYISI, 50),
@@ -122,16 +123,21 @@ BEGIN TRY
                    NET_GSM_BIRINCI_FIRMA = ISNULL(NET_GSM_BIRINCI_FIRMA, 1),
                    KOBICOM_BIRINCI_FIRMA = ISNULL(KOBICOM_BIRINCI_FIRMA, 0),
                    KIRMIZI_SANTRAL_BIRINCI_FIRMA = ISNULL(KIRMIZI_SANTRAL_BIRINCI_FIRMA, 0),
-                   AKTIF_BIRINCI_FIRMA = ISNULL(AKTIF_BIRINCI_FIRMA, 'NETGSM'),
-                   AKTIF_IKINCI_FIRMA = ISNULL(AKTIF_IKINCI_FIRMA, 'KOBIKOM'),
+                   AKTIF_BIRINCI_FIRMA = ISNULL(AKTIF_BIRINCI_FIRMA, ''NETGSM''),
+                   AKTIF_IKINCI_FIRMA = ISNULL(AKTIF_IKINCI_FIRMA, ''KIRMIZISANTRAL''),
                    CAGRI_SONLANDIRMA_GERI_ARAMASI = ISNULL(CAGRI_SONLANDIRMA_GERI_ARAMASI, 0),
                    CAGRI_SONLANDIRMA_ARAMA_BASLAMA_DAKIKASI = ISNULL(CAGRI_SONLANDIRMA_ARAMA_BASLAMA_DAKIKASI, 5),
-                   CAGRI_SONLANDIRMA_ARAMA_BITIS_DAKIKASI = ISNULL(CAGRI_SONLANDIRMA_ARAMA_BITIS_DAKIKASI, 30);
+                   CAGRI_SONLANDIRMA_ARAMA_BITIS_DAKIKASI = ISNULL(CAGRI_SONLANDIRMA_ARAMA_BITIS_DAKIKASI, 30);';
 
-            UPDATE S_GENELAYARLAR
+                        EXEC sp_executesql N'UPDATE K_DAHIKOD_AYARLAR
+                             SET AKTIF_IKINCI_FIRMA = ''KIRMIZISANTRAL''
+                         WHERE UPPER(ISNULL(AKTIF_BIRINCI_FIRMA, '''')) = ''NETGSM''
+                             AND UPPER(ISNULL(AKTIF_IKINCI_FIRMA, '''')) = ''KOBIKOM'';';
+
+            EXEC sp_executesql N'UPDATE S_GENELAYARLAR
                SET SMS_DURUM = ISNULL(SMS_DURUM, 1),
                    EPOSTA_DURUM = ISNULL(EPOSTA_DURUM, 1),
-                   SESLI_CAGRI_AKTIF = ISNULL(SESLI_CAGRI_AKTIF, 1);
+                   SESLI_CAGRI_AKTIF = ISNULL(SESLI_CAGRI_AKTIF, 1);';
         END
         ELSE
         BEGIN
@@ -140,12 +146,16 @@ BEGIN TRY
     END
 
     /* 5) Value validation (non-destructive check) */
+    /* Dynamic SQL to avoid compile-time binding errors on newly added columns */
     DECLARE @InvalidActiveFirmCount INT = 0;
-    SELECT @InvalidActiveFirmCount = COUNT(*)
-    FROM K_DAHIKOD_AYARLAR
-    WHERE UPPER(ISNULL(AKTIF_BIRINCI_FIRMA,'')) NOT IN ('NETGSM','KIRMIZISANTRAL','KOBIKOM')
-       OR UPPER(ISNULL(AKTIF_IKINCI_FIRMA,'')) NOT IN ('NETGSM','KIRMIZISANTRAL','KOBIKOM')
-       OR UPPER(ISNULL(AKTIF_BIRINCI_FIRMA,'')) = UPPER(ISNULL(AKTIF_IKINCI_FIRMA,''));
+    EXEC sp_executesql
+        N'SELECT @cnt = COUNT(*)
+          FROM K_DAHIKOD_AYARLAR
+          WHERE UPPER(ISNULL(AKTIF_BIRINCI_FIRMA,'''')) NOT IN (''NETGSM'',''KIRMIZISANTRAL'',''KOBIKOM'')
+             OR UPPER(ISNULL(AKTIF_IKINCI_FIRMA,'''')) NOT IN (''NETGSM'',''KIRMIZISANTRAL'',''KOBIKOM'')
+             OR UPPER(ISNULL(AKTIF_BIRINCI_FIRMA,'''')) = UPPER(ISNULL(AKTIF_IKINCI_FIRMA,''''));',
+        N'@cnt INT OUTPUT',
+        @cnt = @InvalidActiveFirmCount OUTPUT;
 
     IF @InvalidActiveFirmCount > 0
     BEGIN
@@ -167,9 +177,9 @@ BEGIN TRY
         PRINT 'DRY-RUN MODE: transaction rolled back (no changes applied).';
     END
 
-    /* 6) Post-check snapshot */
+    /* 6) Post-check snapshot (dynamic to avoid compile-time column resolution errors) */
     PRINT '--- K_DAHIKOD_AYARLAR (top 5) ---';
-    SELECT TOP 5
+    EXEC sp_executesql N'SELECT TOP 5
         BILDIRIM_GONDERME_DENEME_SAYISI,
         KAC_DAKIKA_ONCEKI_BILDIRIM_GONDERILSIN,
         NET_GSM_BIRINCI_FIRMA,
@@ -180,11 +190,11 @@ BEGIN TRY
         CAGRI_SONLANDIRMA_GERI_ARAMASI,
         CAGRI_SONLANDIRMA_ARAMA_BASLAMA_DAKIKASI,
         CAGRI_SONLANDIRMA_ARAMA_BITIS_DAKIKASI
-    FROM K_DAHIKOD_AYARLAR;
+    FROM K_DAHIKOD_AYARLAR;';
 
     PRINT '--- S_GENELAYARLAR (top 5) ---';
-    SELECT TOP 5 SMS_DURUM, EPOSTA_DURUM, SESLI_CAGRI_AKTIF
-    FROM S_GENELAYARLAR;
+    EXEC sp_executesql N'SELECT TOP 5 SMS_DURUM, EPOSTA_DURUM, SESLI_CAGRI_AKTIF
+    FROM S_GENELAYARLAR;';
 
 END TRY
 BEGIN CATCH

@@ -3,8 +3,30 @@
 ### Kurulum
 
 - `.env` dosyasını hastaneye göre değiştiriniz
+- MSSQL TLS ayarı için gerekirse şunları ekleyin:
+	- `MSSQL_ENCRYPT=false` (eski/on-prem SQL Server için önerilir)
+	- `MSSQL_TRUST_SERVER_CERTIFICATE=true`
 - `npm i` komutu ile paketleri yükleyin
 - `npm start` komutu ile projeyi çalıştırın
+
+### Güncelleme Öncesi Kontrol (Önerilen)
+
+- `npm run precheck`
+- Bu komut şu kontrolleri yapar:
+	- Zorunlu `.env` değişkenleri dolu mu?
+	- Kritik tablolar ve kolonlar var mı?
+	- `K_DAHIKOD_AYARLAR` ve `S_GENELAYARLAR` değerleri beklenen aralıkta mı?
+
+### Sunucuda Sağlayıcı Bazlı Test Komutları
+
+- SMS test (NetGSM):
+	- `npm run test:sms -- netgsm 905065855286 "Test mesaji1"`
+- SMS test (Kırmızı Santral):
+	- `npm run test:sms -- kirmizi 905065855286 "Test mesaji Lokal 2"`
+- Sesli çağrı test (NetGSM):
+	- `npm run test:voice -- netgsm 905065855286 "Test sesli cagri metni1"`
+- Sesli çağrı test (Kırmızı Santral):
+	- `npm run test:voice -- kirmizi 905065855286 "Test sesli cagri metni2"`
 
 ### Değişiklikler [version]
 
